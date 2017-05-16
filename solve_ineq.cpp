@@ -3,41 +3,60 @@
 #include <Eigen\Dense>
 
 #include <cmath>
+#include <math.h>
+#include <vector>
+
+#include "PointCloud.h"
+#include "nanoflann.hpp"
+
+using namespace nanoflann;
 
 bool check_ineq(
-	Eigen::Matrix3n A,
-	vector<int> b,
-	Vertex x)
+	Eigen::MatrixXf A,
+	//std::vector<int> b,
+	Eigen::VectorXf b,
+	//PointCloud<float>::Point x)
+	Eigen::VectorXf x)
 {
 	double result = 0.0;
 
-	for(int i=0; i< A.sizeX(); i++)
+	for(int i=0; i< A.cols(); i++)
 	{
 		double ax_sum = 0.0;
-		for(int j=0; j< A.sizeY(); j++)
+		for(int j=0; j< A.rows(); j++)
 		{
-			ax_sum += A[i][j] * x[j];
+			ax_sum += A(i, j) * x(j);
 		}
-		result += std::power(std::max(0, (b[i]-ax_sum)), 2);
+		result += std::pow(std::max(0.0, (b[i]-ax_sum)), 2);
 	}
 
 	return result == 0 ? true : false;
 }
 
 bool solve_ineq(
-	PointCloud &cloud,
+	PointCloud<float> &cloud,
 	// neighbours
-	VertexSet &search
+	RadiusResultSet<float, size_t> &resultSet,
+	double L2
 )
 {
-	Eigen::Vertex3n p1 = search[0];
-	Eigen::Matrix3n A;
+	/*
+	A(i, 0) = cloud.pts[resultSet.m_indices_dists[i].first].x;
+	A(i, 1) = cloud.pts[resultSet.m_indices_dists[i].first].y;
+	A(i, 2) = cloud.pts[resultSet.m_indices_dists[i].first].z;
+	*/
 
-	Eigen::Vector3n b;
-	for(int i=1; i<search.size(); i++)
+	Eigen::Vector3f p1 = resultSet[0];
+	Eigen::Matrix3f A;
+
+	Eigen::VectorXf b;
+	for(int i=1; i<resultSet.size(); i++)
 	{
-		A[i] = {search[i][0] - search[i][0], search[i][1] - search[i][1], search[i][2] - search[i][2]};
-		b[i] = L2;
+		//A(i) = {resultSet[i][0] - resultSet[i][0], resultSet[i][1] - resultSet[i][1], resultSet[i][2] - resultSet[i][2]};
+		A(i, 0) = resultSet[i][0] - resultSet[0][0];
+		A(i, 1) = resultSet[i][1] - resultSet[0][1];
+		A(i, 2) = resultSet[i][2] - resultSet[0][2];
+		b(i) = L2;
 	}
 	A = A.transpose();
 
@@ -46,12 +65,14 @@ bool solve_ineq(
 
 	int i = 0;
 	int j = 0;
-	Vertex n = {0, 0, 0}
+	//Vector n = {0, 0, 0}
+	Eigen::Vector3f n;
+	n(0) = 0; n(1) = 0; n(2) = 0;
 
 	while(!solved && !finish)
 	{
 		n[0] = i; n[1] = j; 
-		n[2] = std::sqrt(std::power(n[0], 2) + std::power(n[1], 2));
+		n[2] = std::sqrt(std::pow(n(0), 2) + std::pow(n(1), 2));
 		
 		if(check_ineq(A, b, n))
 			solved = true;
